@@ -132,7 +132,7 @@ fun HomeScreen(
     onNavigateToNotifications: () -> Unit,
     onNavigateToRecorder: () -> Unit
 ) {
-    val notifCount by notificationViewModel.notificationCount.collectAsState()
+    val unreadNotifCount by notificationViewModel.unreadCount.collectAsState()
     val audioCount by mainViewModel.recordingCount.collectAsState()
 
     Column(
@@ -152,7 +152,7 @@ fun HomeScreen(
 
         DashboardCard(
             title = "Notificações",
-            count = notifCount,
+            count = unreadNotifCount,
             icon = Icons.Default.Notifications,
             color = ElectricBlue,
             onClick = onNavigateToNotifications
@@ -270,14 +270,18 @@ fun NotificationsScreen(viewModel: NotificationViewModel) {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(notifications) { notification ->
-                NotificationListItem(notification, onDelete = { viewModel.deleteNotification(notification) })
+                NotificationListItem(
+                    notification = notification, 
+                    onMarkAsRead = { viewModel.markAsRead(notification) },
+                    onDelete = { viewModel.deleteNotification(notification) }
+                )
             }
         }
     }
 }
 
 @Composable
-fun NotificationListItem(notification: NotificationEntity, onDelete: () -> Unit) {
+fun NotificationListItem(notification: NotificationEntity, onMarkAsRead: () -> Unit, onDelete: () -> Unit) {
     val sdf = remember { SimpleDateFormat("HH:mm - dd/MM/yyyy", Locale.getDefault()) }
     var expanded by remember { mutableStateOf(false) }
     
@@ -285,7 +289,10 @@ fun NotificationListItem(notification: NotificationEntity, onDelete: () -> Unit)
         modifier = Modifier
             .fillMaxWidth()
             .animateContentSize()
-            .clickable { expanded = !expanded },
+            .clickable { 
+                expanded = !expanded 
+                if (expanded) onMarkAsRead()
+            },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceGrey.copy(alpha = 0.5f))
     ) {
@@ -311,7 +318,26 @@ fun NotificationListItem(notification: NotificationEntity, onDelete: () -> Unit)
                 Spacer(modifier = Modifier.width(12.dp))
                 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = notification.appName, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = ElectricBlue)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(text = notification.appName, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = ElectricBlue)
+                        
+                        Surface(
+                            color = if (notification.isRead) Color.Gray.copy(alpha = 0.2f) else NeonGreen.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = if (notification.isRead) "Lido" else "Não lido",
+                                color = if (notification.isRead) Color.Gray else NeonGreen,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
                     Text(text = notification.title ?: "Sem título", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 }
                 
