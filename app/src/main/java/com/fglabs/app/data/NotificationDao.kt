@@ -24,7 +24,7 @@ interface NotificationDao {
     @Query("SELECT COUNT(*) FROM notifications")
     fun getNotificationCount(): Flow<Int>
 
-    @Query("SELECT COUNT(*) FROM notifications WHERE isRead = 0")
+    @Query("SELECT COUNT(*) FROM notifications WHERE isRead = 0 AND title IS NOT NULL AND title != ''")
     fun getUnreadNotificationCount(): Flow<Int>
 
     @Update
