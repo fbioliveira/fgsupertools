@@ -8,7 +8,6 @@ import android.graphics.drawable.Icon
 import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
-import android.util.Log
 import com.fglabs.app.data.AppDatabase
 import com.fglabs.app.data.NotificationEntity
 import kotlinx.coroutines.CoroutineScope
@@ -25,6 +24,7 @@ class NotificationService : NotificationListenerService() {
         super.onNotificationPosted(sbn)
         sbn?.let {
             val packageName = it.packageName
+            val notificationId = it.id
             val extras = it.notification.extras
             val title = extras.getString(Notification.EXTRA_TITLE)
             val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
@@ -32,7 +32,7 @@ class NotificationService : NotificationListenerService() {
             // Avoid capturing notifications from our own app
             if (packageName == applicationContext.packageName) return
 
-            val appName = try {
+            val appLabel = try {
                 packageManager.getApplicationLabel(
                     packageManager.getApplicationInfo(packageName, 0)
                 ).toString()
@@ -58,7 +58,8 @@ class NotificationService : NotificationListenerService() {
             }
 
             val entity = NotificationEntity(
-                appName = appName,
+                notificationId = notificationId,
+                appName = appLabel,
                 title = title,
                 content = text,
                 packageName = packageName,

@@ -6,10 +6,12 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -21,6 +23,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -44,6 +47,7 @@ import coil.compose.AsyncImage
 import com.fglabs.app.data.NotificationEntity
 import com.fglabs.app.ui.MainViewModel
 import com.fglabs.app.ui.NotificationViewModel
+import com.fglabs.app.ui.components.AppGroupSummaryCard
 import com.fglabs.app.ui.theme.AppTheme
 import com.fglabs.app.ui.theme.ElectricBlue
 import com.fglabs.app.ui.theme.NeonGreen
@@ -51,6 +55,9 @@ import com.fglabs.app.ui.theme.SurfaceGrey
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
+
+enum class SortType { DATE, ID }
+enum class SortOrder { ASC, DESC }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -253,28 +260,142 @@ fun RecorderScreen(mainViewModel: MainViewModel) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotificationsScreen(viewModel: NotificationViewModel) {
     val notifications by viewModel.allNotifications.collectAsState()
+    var selectedPackageName by remember { mutableStateOf<String?>(null) }
+    
+    // Estados para ordenação
+    var sortType by remember { mutableStateOf(SortType.DATE) }
+    var sortOrder by remember { mutableStateOf(SortOrder.DESC) }
+
+    // Interceptar o botão voltar se um grupo estiver aberto
+    BackHandler(enabled = selectedPackageName != null) {
+        selectedPackageName = null
+    }
+
+    val groupedNotifications = remember(notifications) {
+        notifications.groupBy { it.packageName }
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text(
-            text = "Notificações Capturadas",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (selectedPackageName != null) {
+                IconButton(onClick = { selectedPackageName = null }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
+                }
+            }
+            Text(
+                text = if (selectedPackageName == null) "Notificações" else {
+                    groupedNotifications[selectedPackageName]?.firstOrNull()?.appName ?: "Detalhes"
+                },
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
+        }
         
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(notifications) { notification ->
-                NotificationListItem(
-                    notification = notification, 
-                    onMarkAsRead = { viewModel.markAsRead(notification) },
-                    onDelete = { viewModel.deleteNotification(notification) }
-                )
+        AnimatedContent(targetState = selectedPackageName, label = "NotificationNav") { pkg ->
+            if (pkg == null) {
+                // Lista de Grupos
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    groupedNotifications.forEach { (packageName, appNotifications) ->
+                        val unreadCount = appNotifications.count { !it.isRead }
+                        item(key = packageName) {
+                            AppGroupSummaryCard(
+                                packageName = packageName,
+                                appName = appNotifications.firstOrNull()?.appName ?: "Desconhecido",
+                                count = unreadCount,
+                                onClick = { selectedPackageName = packageName }
+                            )
+                        }
+                    }
+                }
+            } else {
+                // Lista de Notificações do Grupo
+                val appNotifications = groupedNotifications[pkg] ?: emptyList()
+                
+                // Aplicar Ordenação
+                val sortedNotifications = remember(appNotifications, sortType, sortOrder) {
+                    when (sortType) {
+                        SortType.DATE -> if (sortOrder == SortOrder.ASC) {
+                            appNotifications.sortedBy { it.timestamp }
+                        } else {
+                            appNotifications.sortedByDescending { it.timestamp }
+                        }
+                        SortType.ID -> if (sortOrder == SortOrder.ASC) {
+                            appNotifications.sortedBy { it.notificationId }
+                        } else {
+                            appNotifications.sortedByDescending { it.notificationId }
+                        }
+                    }
+                }
+
+                Column {
+                    // Controles de Filtro/Ordenação
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FilterChip(
+                            selected = sortType == SortType.DATE,
+                            onClick = { 
+                                if (sortType == SortType.DATE) {
+                                    sortOrder = if (sortOrder == SortOrder.ASC) SortOrder.DESC else SortOrder.ASC
+                                } else {
+                                    sortType = SortType.DATE
+                                }
+                            },
+                            label = { Text("Data") },
+                            leadingIcon = if (sortType == SortType.DATE) {
+                                { Icon(if (sortOrder == SortOrder.ASC) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            } else null,
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = ElectricBlue.copy(alpha = 0.2f),
+                                selectedLabelColor = ElectricBlue
+                            )
+                        )
+
+                        FilterChip(
+                            selected = sortType == SortType.ID,
+                            onClick = { 
+                                if (sortType == SortType.ID) {
+                                    sortOrder = if (sortOrder == SortOrder.ASC) SortOrder.DESC else SortOrder.ASC
+                                } else {
+                                    sortType = SortType.ID
+                                }
+                            },
+                            label = { Text("ID") },
+                            leadingIcon = if (sortType == SortType.ID) {
+                                { Icon(if (sortOrder == SortOrder.ASC) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            } else null,
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = ElectricBlue.copy(alpha = 0.2f),
+                                selectedLabelColor = ElectricBlue
+                            )
+                        )
+                    }
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(sortedNotifications) { notification ->
+                            NotificationListItem(
+                                notification = notification, 
+                                onMarkAsRead = { viewModel.markAsRead(notification) },
+                                onDelete = { viewModel.deleteNotification(notification) }
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -285,7 +406,7 @@ fun NotificationListItem(notification: NotificationEntity, onMarkAsRead: () -> U
     val sdf = remember { SimpleDateFormat("HH:mm - dd/MM/yyyy", Locale.getDefault()) }
     var expanded by remember { mutableStateOf(false) }
     
-    Card(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .animateContentSize()
@@ -293,61 +414,47 @@ fun NotificationListItem(notification: NotificationEntity, onMarkAsRead: () -> U
                 expanded = !expanded 
                 if (expanded) onMarkAsRead()
             },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceGrey.copy(alpha = 0.5f))
+        shape = RoundedCornerShape(12.dp),
+        color = SurfaceGrey.copy(alpha = 0.5f)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (notification.imagePath != null) {
-                    AsyncImage(
-                        model = File(notification.imagePath),
-                        contentDescription = null,
-                        modifier = Modifier.size(40.dp).clip(CircleShape)
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier.size(40.dp).background(ElectricBlue.copy(alpha = 0.2f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Notifications, contentDescription = null, tint = ElectricBlue, modifier = Modifier.size(20.dp))
-                    }
-                }
-                
-                Spacer(modifier = Modifier.width(12.dp))
-                
                 Column(modifier = Modifier.weight(1f)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(text = notification.appName, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = ElectricBlue)
-                        
-                        Surface(
-                            color = if (notification.isRead) Color.Gray.copy(alpha = 0.2f) else NeonGreen.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                             Text(
-                                text = if (notification.isRead) "Lido" else "Não lido",
-                                color = if (notification.isRead) Color.Gray else NeonGreen,
+                                text = sdf.format(Date(notification.timestamp)),
                                 fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                color = Color.Gray
                             )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "ID: ${notification.notificationId}",
+                                fontSize = 10.sp,
+                                color = Color.Gray
+                            )
+                        }
+                        
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (!notification.isRead) {
+                                Box(modifier = Modifier.size(6.dp).background(NeonGreen, CircleShape))
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
+                            
+                            IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                            }
                         }
                     }
                     Text(text = notification.title ?: "Sem título", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 }
-                
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
-                }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
-            
             Text(
                 text = notification.content ?: "",
                 fontSize = 13.sp,
@@ -363,20 +470,11 @@ fun NotificationListItem(notification: NotificationEntity, onMarkAsRead: () -> U
                     contentDescription = "Big Picture",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 250.dp)
+                        .heightIn(max = 200.dp)
                         .clip(RoundedCornerShape(8.dp)),
-                    contentScale = ContentScale.Fit
+                    contentScale = ContentScale.Crop
                 )
             }
-
-            Spacer(modifier = Modifier.height(4.dp))
-            
-            Text(
-                text = sdf.format(Date(notification.timestamp)),
-                fontSize = 10.sp,
-                color = Color.Gray.copy(alpha = 0.7f),
-                modifier = Modifier.align(Alignment.End)
-            )
         }
     }
 }
