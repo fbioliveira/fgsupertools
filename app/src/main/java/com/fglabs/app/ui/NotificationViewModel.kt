@@ -19,12 +19,11 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         dao.getAllNotifications(),
         _searchQuery
     ) { notifications, query ->
-        val filteredByTitle = notifications.filter { !it.title.isNullOrBlank() }
-        
+        // No longer filtering by title here to see everything
         if (query.isBlank()) {
-            filteredByTitle
+            notifications
         } else {
-            filteredByTitle.filter { 
+            notifications.filter {
                 it.appName.contains(query, ignoreCase = true) || 
                 (it.title?.contains(query, ignoreCase = true) == true) ||
                 (it.content?.contains(query, ignoreCase = true) == true)
@@ -37,6 +36,9 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
 
     val unreadCount: StateFlow<Int> = dao.getUnreadNotificationCount()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val unreadPackageNames: StateFlow<List<String>> = dao.getUnreadPackageNames()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query

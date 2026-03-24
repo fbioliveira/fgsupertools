@@ -26,11 +26,18 @@ class NotificationService : NotificationListenerService() {
             val packageName = it.packageName
             val notificationId = it.id
             val extras = it.notification.extras
-            val title = extras.getString(Notification.EXTRA_TITLE)
+            
+            // YouTube and other apps often use CharSequence for titles
+            val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
             val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
+                ?: extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()
+                ?: extras.getCharSequence(Notification.EXTRA_SUMMARY_TEXT)?.toString()
             
             // Avoid capturing notifications from our own app
             if (packageName == applicationContext.packageName) return
+
+            // Optional: Filter out ongoing notifications like music players if desired
+            // if (it.isOngoing) return
 
             val appLabel = try {
                 packageManager.getApplicationLabel(
@@ -40,11 +47,10 @@ class NotificationService : NotificationListenerService() {
                 packageName
             }
 
-            // Extract small icon (imagePath)
+            // Extract icons and images
             val smallBitmap = getBitmapFromExtra(extras, Notification.EXTRA_LARGE_ICON)
                 ?: getBitmapFromExtra(extras, Notification.EXTRA_SMALL_ICON)
 
-            // Extract big picture (bigPicturePath)
             val bigBitmap = getBitmapFromExtra(extras, Notification.EXTRA_PICTURE)
 
             var imagePath: String? = null
@@ -64,11 +70,16 @@ class NotificationService : NotificationListenerService() {
                 content = text,
                 packageName = packageName,
                 imagePath = imagePath,
-                bigPicturePath = bigPicturePath
+                bigPicturePath = bigPicturePath,
+                timestamp = it.postTime
             )
 
             serviceScope.launch {
-                AppDatabase.getDatabase(applicationContext).notificationDao().insert(entity)
+                try {
+                    AppDatabase.getDatabase(applicationContext).notificationDao().insert(entity)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
         }
     }
@@ -77,7 +88,7 @@ class NotificationService : NotificationListenerService() {
         val extra = extras.get(key) ?: return null
         if (extra is Bitmap) return extra
         if (extra is Icon) {
-            val drawable = extra.loadDrawable(this) ?: return null
+            val drawable = try { extra.loadDrawable(this) } catch (e: Exception) { null } ?: return null
             if (drawable is BitmapDrawable) return drawable.bitmap
             val bitmap = Bitmap.createBitmap(
                 drawable.intrinsicWidth.coerceAtLeast(1),

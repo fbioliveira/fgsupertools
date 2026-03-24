@@ -18,7 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.fglabs.app.ui.theme.ElectricBlue
+import com.fglabs.app.ui.theme.GreenTeal
 import com.fglabs.app.ui.theme.SurfaceGrey
 
 @Composable
@@ -66,22 +66,22 @@ fun AppGroupSummaryCard(
                 )
             } else {
                 Box(
-                    modifier = Modifier.size(48.dp).background(ElectricBlue.copy(alpha = 0.2f), RoundedCornerShape(12.dp)),
+                    modifier = Modifier.size(48.dp).background(GreenTeal.copy(alpha = 0.2f), RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(displayAppName.take(1), fontWeight = FontWeight.Bold, color = ElectricBlue)
+                    Text(displayAppName.take(1), fontWeight = FontWeight.Bold, color = GreenTeal)
                 }
             }
             
             Spacer(modifier = Modifier.width(16.dp))
             
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = displayAppName, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = ElectricBlue)
+                Text(text = displayAppName, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = GreenTeal)
                 Text(text = packageName, fontSize = 10.sp, color = Color.Gray)
             }
             
             if (count > 0) {
-                Badge(containerColor = ElectricBlue, contentColor = Color.White) {
+                Badge(containerColor = GreenTeal, contentColor = Color.White) {
                     Text(count.toString(), modifier = Modifier.padding(4.dp))
                 }
             }

@@ -28,6 +28,9 @@ interface NotificationDao {
     @Query("SELECT COUNT(*) FROM notifications WHERE isRead = 0 AND title IS NOT NULL AND title != ''")
     fun getUnreadNotificationCount(): Flow<Int>
 
+    @Query("SELECT DISTINCT packageName FROM notifications WHERE isRead = 0 AND title IS NOT NULL AND title != ''")
+    fun getUnreadPackageNames(): Flow<List<String>>
+
     @Update
     suspend fun update(notification: NotificationEntity)
 
